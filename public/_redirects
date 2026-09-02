@@ -1,0 +1,2 @@
+# Netlify SPA rewrite rule - routes all page visits to index.html
+/*    /index.html   200
