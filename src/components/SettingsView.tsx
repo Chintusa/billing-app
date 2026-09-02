@@ -38,7 +38,12 @@ import {
   Receipt,
   ShoppingBag,
   ArrowUpDown,
-  X
+  X,
+  Upload,
+  Database,
+  FileSpreadsheet,
+  Download,
+  HardDrive
 } from 'lucide-react';
 import {
   AppSettings,
@@ -52,7 +57,7 @@ import {
   WhatsAppProvider
 } from '../types';
 import { capitalizeWords, sanitizePhoneNumber } from '../services/billing';
-import { DEFAULT_APP_SETTINGS, saveAppSettings } from '../services/db';
+import { DEFAULT_APP_SETTINGS, saveAppSettings, exportAppDataBackup, importAppDataBackup, exportInvoicesToCSV, getAllInvoices } from '../services/db';
 import { testWhatsAppApiConnection } from '../services/whatsappService';
 import {
   fetchLocalWhatsAppStatus,
@@ -169,6 +174,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [copiedTemplate, setCopiedTemplate] = useState<boolean>(false);
   const [showTemplateGuide, setShowTemplateGuide] = useState<boolean>(false);
+
+  // Backup & Restore State
+  const backupFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [backupModalData, setBackupModalData] = useState<{
+    rawJson: string;
+    invoiceCount: number;
+    storeName: string;
+    exportedAt?: string;
+  } | null>(null);
+
+  const handleExportBackupClick = () => {
+    exportAppDataBackup();
+    showToast('Backup Created', 'Full application backup file (.json) downloaded successfully!', 'success');
+  };
+
+  const handleExportCsvClick = () => {
+    exportInvoicesToCSV();
+    showToast('CSV Exported', 'All invoices exported to CSV spreadsheet successfully!', 'success');
+  };
+
+  const handleBackupFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        const invCount = Array.isArray(parsed.invoices) ? parsed.invoices.length : (Array.isArray(parsed) ? parsed.length : 0);
+        const store = parsed.settings?.store?.storeName || parsed.storeName || 'Smart Bill Store';
+
+        setBackupModalData({
+          rawJson: text,
+          invoiceCount: invCount,
+          storeName: store,
+          exportedAt: parsed.exportedAt
+        });
+      } catch (err: any) {
+        showToast('Invalid File', 'The selected file is not a valid Smart Bill JSON backup file.', 'error');
+      }
+      if (backupFileInputRef.current) backupFileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const executeRestore = (mode: 'merge' | 'replace') => {
+    if (!backupModalData) return;
+    const result = importAppDataBackup(backupModalData.rawJson, mode);
+    if (result.success) {
+      showToast('Restore Complete', result.message, 'success');
+      const updatedSettings = JSON.parse(localStorage.getItem('smart_bill_settings_v1') || '{}');
+      setFormData(updatedSettings);
+      onSettingsSaved(updatedSettings);
+    } else {
+      showToast('Restore Failed', result.message, 'error');
+    }
+    setBackupModalData(null);
+  };
 
   // Marketing Note Management State
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
@@ -1410,7 +1474,109 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* SECTION 6: SOFTWARE INFO & DEVELOPER SHOWCASE */}
+          {/* SECTION 6: DATA BACKUP, RESTORE & MIGRATION */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Data Backup, Restore & Migration</h3>
+                  <p className="text-[11px] text-slate-500">Safely backup all your bills and settings, or migrate data from the hosted website into this app.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <input
+                type="file"
+                ref={backupFileInputRef}
+                onChange={handleBackupFileSelect}
+                accept=".json"
+                className="hidden"
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. Export Backup Card */}
+                <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center space-x-2 text-blue-800 font-bold">
+                      <Download className="w-4 h-4" />
+                      <span>1. Export Full Backup (.json)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Download all store profile settings, tax rules, delivery options, and historical invoices into a portable backup file.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportBackupClick}
+                    className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Backup JSON</span>
+                  </button>
+                </div>
+
+                {/* 2. Import & Restore Card */}
+                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center space-x-2 text-emerald-800 font-bold">
+                      <Upload className="w-4 h-4" />
+                      <span>2. Import / Restore Backup</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Restore bills and settings from a previously saved backup file. You can choose to merge bills or do a full restore.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => backupFileInputRef.current?.click()}
+                    className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Select Backup File to Restore</span>
+                  </button>
+                </div>
+
+                {/* 3. Export CSV Card */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center space-x-2 text-slate-800 font-bold">
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>3. Export to Excel (CSV)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Export all sales records, invoice amounts, tax, and customer names to a CSV spreadsheet for accounting or Excel.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportCsvClick}
+                    className="w-full py-2 px-3 bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg shadow-sm transition-all flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Download CSV Spreadsheet</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Migration Helper Tip */}
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-2.5 text-amber-900">
+                <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5 text-[11px]">
+                  <strong className="font-semibold">Migrating from Hosted Web Version to Electron Desktop App?</strong>
+                  <p className="text-amber-800 leading-relaxed">
+                    1. Open your hosted web app in your browser, go to <strong>Settings</strong>, and click <strong>"Download Backup JSON"</strong>.<br/>
+                    2. Open this Desktop Application, click <strong>"Select Backup File to Restore"</strong>, and choose <strong>"Merge &amp; Keep All Bills"</strong>. All your previous bills will appear instantly!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 7: SOFTWARE INFO & DEVELOPER SHOWCASE */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-xl shadow-sm p-5 border border-slate-700/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
@@ -1746,6 +1912,79 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               >
                 {confirmModal.variant === 'danger' && <Trash2 className="w-3.5 h-3.5" />}
                 <span>{confirmModal.confirmLabel}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RESTORE / IMPORT MODAL */}
+      {backupModalData && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs animate-backdrop"
+            onClick={() => setBackupModalData(null)}
+          />
+          <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 animate-pop-in z-10 text-slate-800 dark:text-slate-100">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
+                <Database className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Restore Smart Bill Data
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Found <strong className="text-slate-800 dark:text-slate-200">{backupModalData.invoiceCount} invoices</strong> for store <strong className="text-slate-800 dark:text-slate-200">"{backupModalData.storeName}"</strong>.
+                </p>
+                {backupModalData.exportedAt && (
+                  <p className="text-[11px] text-slate-400">
+                    Backup Date: {new Date(backupModalData.exportedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+              <p className="text-slate-600 dark:text-slate-300 font-medium">How would you like to restore this data?</p>
+              
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => executeRestore('merge')}
+                  className="w-full text-left p-3 rounded-xl border border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/80 transition-colors cursor-pointer"
+                >
+                  <div className="font-bold text-emerald-900 flex items-center justify-between">
+                    <span>Merge with Existing Bills (Recommended)</span>
+                    <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-bold">Safe</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    Keeps all current bills on this machine and adds any new bills from the backup file without creating duplicates.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => executeRestore('replace')}
+                  className="w-full text-left p-3 rounded-xl border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                >
+                  <div className="font-bold text-slate-800 dark:text-slate-200">
+                    Full Restore (Replace All)
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Overwrites all settings and invoices to match the backup file exactly.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setBackupModalData(null)}
+                className="px-4 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
               </button>
             </div>
           </div>

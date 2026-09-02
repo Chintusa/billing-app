@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Calendar, Printer, Download, Share2, Trash2, Eye, RefreshCw, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Calendar, Printer, Download, Share2, Trash2, Eye, RefreshCw, X, Upload, FileSpreadsheet, Database, Check } from 'lucide-react';
 import { AppSettings, Invoice, PaperSize } from '../types';
-import { deleteInvoice, getAllInvoices } from '../services/db';
+import { deleteInvoice, getAllInvoices, exportAppDataBackup, importAppDataBackup, exportInvoicesToCSV } from '../services/db';
 import { formatCurrency } from '../services/billing';
 
 interface HistoryViewProps {
@@ -23,6 +23,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedPaperSize, setSelectedPaperSize] = useState<PaperSize>(settings.printing.paperSize || 'A6');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadInvoices = () => {
     setInvoices(getAllInvoices());
@@ -45,6 +47,30 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       }
       setDeleteConfirmId(null);
     }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const result = importAppDataBackup(content, 'merge');
+        if (result.success) {
+          loadInvoices();
+          setImportStatus(result.message);
+          setTimeout(() => setImportStatus(null), 5000);
+        } else {
+          alert(result.message);
+        }
+      } catch (err: any) {
+        alert('Failed to read file: ' + err.message);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const filteredInvoices = invoices.filter((inv) => {
@@ -96,8 +122,44 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           )}
         </div>
 
-        <div className="flex items-center space-x-2 text-xs font-semibold text-[#605E5C] w-full sm:w-auto justify-end">
-          <span>Total Invoices: {filteredInvoices.length}</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#605E5C] w-full sm:w-auto justify-end">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".json"
+            className="hidden"
+          />
+          <button
+            onClick={() => exportAppDataBackup()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer text-[11px]"
+            title="Download full backup file (.json) with all bills and settings"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Backup Bills (JSON)</span>
+          </button>
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer text-[11px]"
+            title="Import bills and settings from a backup file"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Import Backup</span>
+          </button>
+
+          <button
+            onClick={() => exportInvoicesToCSV()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors cursor-pointer text-[11px]"
+            title="Export all bills to CSV spreadsheet"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </button>
+
+          <div className="h-4 w-px bg-slate-200 mx-1"></div>
+
+          <span>Total: {filteredInvoices.length}</span>
           <button
             onClick={loadInvoices}
             className="p-1.5 rounded hover:bg-[#F3F2F1] text-[#605E5C] transition-colors cursor-pointer"
@@ -107,6 +169,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           </button>
         </div>
       </div>
+
+      {importStatus && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2.5 rounded-lg text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span className="font-medium">{importStatus}</span>
+          </div>
+          <button onClick={() => setImportStatus(null)} className="text-emerald-600 hover:text-emerald-800">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Invoices List Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">

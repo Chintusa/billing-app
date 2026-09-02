@@ -215,3 +215,191 @@ function getInitialSampleInvoices(): Invoice[] {
     }
   ];
 }
+
+export interface AppBackupPayload {
+  app: string;
+  version: string;
+  exportedAt: string;
+  storeName: string;
+  invoiceCount: number;
+  settings: AppSettings;
+  invoices: Invoice[];
+}
+
+export function exportAppDataBackup(): void {
+  const settings = getAppSettings();
+  const invoices = getAllInvoices();
+  
+  const payload: AppBackupPayload = {
+    app: 'Smart Bill POS',
+    version: '1.0.0',
+    exportedAt: new Date().toISOString(),
+    storeName: settings.store?.storeName || 'Smart Bill Store',
+    invoiceCount: invoices.length,
+    settings,
+    invoices
+  };
+
+  const jsonString = JSON.stringify(payload, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+  const filename = `smart_bill_backup_${dateStr}_${timeStr}.json`;
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function importAppDataBackup(
+  backupData: any,
+  mode: 'merge' | 'replace' = 'merge'
+): { success: boolean; importedCount: number; message: string } {
+  try {
+    let parsed: any = backupData;
+    if (typeof backupData === 'string') {
+      parsed = JSON.parse(backupData);
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+      return { success: false, importedCount: 0, message: 'Invalid backup file format.' };
+    }
+
+    const importedInvoices: Invoice[] = Array.isArray(parsed.invoices) ? parsed.invoices : (Array.isArray(parsed) ? parsed : []);
+    const importedSettings: AppSettings | undefined = parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : undefined;
+
+    if (importedInvoices.length === 0 && !importedSettings) {
+      return { success: false, importedCount: 0, message: 'No valid invoices or settings found in this file.' };
+    }
+
+    if (mode === 'replace') {
+      if (importedSettings) {
+        saveAppSettings(importedSettings);
+      }
+      saveAllInvoices(importedInvoices);
+      return {
+        success: true,
+        importedCount: importedInvoices.length,
+        message: `Successfully restored ${importedInvoices.length} bills and store settings!`
+      };
+    } else {
+      // Merge mode
+      const currentInvoices = getAllInvoices();
+      const invoiceMap = new Map<string, Invoice>();
+      
+      // Seed with current
+      for (const inv of currentInvoices) {
+        if (inv.invoiceNumber) invoiceMap.set(inv.invoiceNumber, inv);
+        else if (inv.id) invoiceMap.set(inv.id, inv);
+      }
+
+      let addedCount = 0;
+      for (const inv of importedInvoices) {
+        const key = inv.invoiceNumber || inv.id;
+        if (key && !invoiceMap.has(key)) {
+          invoiceMap.set(key, inv);
+          addedCount++;
+        }
+      }
+
+      const mergedInvoices = Array.from(invoiceMap.values());
+      // Sort newest first by date/invoiceNumber
+      mergedInvoices.sort((a, b) => {
+        const dateA = new Date(a.invoiceDate || a.createdAt || 0).getTime();
+        const dateB = new Date(b.invoiceDate || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+
+      saveAllInvoices(mergedInvoices);
+
+      if (importedSettings) {
+        const currentSettings = getAppSettings();
+        const nextNum = Math.max(
+          currentSettings.invoice?.nextInvoiceNumber || 1,
+          importedSettings.invoice?.nextInvoiceNumber || 1
+        );
+        saveAppSettings({
+          ...currentSettings,
+          ...importedSettings,
+          invoice: {
+            ...currentSettings.invoice,
+            ...importedSettings.invoice,
+            nextInvoiceNumber: nextNum
+          }
+        });
+      }
+
+      return {
+        success: true,
+        importedCount: addedCount,
+        message: `Successfully merged ${addedCount} new bills into your records! Total bills: ${mergedInvoices.length}.`
+      };
+    }
+  } catch (err: any) {
+    return { success: false, importedCount: 0, message: 'Error importing backup: ' + (err.message || String(err)) };
+  }
+}
+
+export function exportInvoicesToCSV(): void {
+  const invoices = getAllInvoices();
+  if (invoices.length === 0) {
+    alert('No invoices found to export.');
+    return;
+  }
+
+  const headers = [
+    'Invoice Number',
+    'Date',
+    'Customer Name',
+    'Customer Phone',
+    'Customer Address',
+    'Total Items',
+    'Subtotal (Rs)',
+    'Discount (Rs)',
+    'Tax (Rs)',
+    'Delivery Fees (Rs)',
+    'Grand Total (Rs)',
+    'Payment Method',
+    'Status',
+    'Note'
+  ];
+
+  const rows = invoices.map((inv) => [
+    `"${inv.invoiceNumber || ''}"`,
+    `"${inv.invoiceDate || ''}"`,
+    `"${(inv.customerName || '').replace(/"/g, '""')}"`,
+    `"${inv.customerPhone || ''}"`,
+    `"${(inv.customerAddress || '').replace(/"/g, '""')}"`,
+    inv.items?.length || 0,
+    (inv.subtotal || 0).toFixed(2),
+    (inv.billDiscountAmount || 0).toFixed(2),
+    (inv.taxAmount || 0).toFixed(2),
+    (inv.deliveryCharges || 0).toFixed(2),
+    (inv.grandTotal || 0).toFixed(2),
+    `"${inv.paymentMethod || 'Cash'}"`,
+    `"${inv.status || 'Completed'}"`,
+    `"${(inv.note || '').replace(/"/g, '""')}"`
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `smart_bill_invoices_${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
