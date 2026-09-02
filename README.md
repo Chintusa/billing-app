@@ -83,16 +83,27 @@ npm run dev
 ```
 Open your browser at **`http://localhost:3000`**.
 
-### 4. Build for Production
+### 4. Run Electron Desktop in Development
 ```bash
-npm run build
-npm run start
+npm run electron:dev
 ```
+
+### 5. Package Windows Desktop Installer (.exe)
+```bash
+npm run electron:build
+```
+The installer will be generated in `release/Smart Bill - Billing Software Setup 1.0.0.exe`.
 
 ---
 
-## 🖥️ One-Click Windows Desktop Setup
+## 🖥️ Production Desktop Modes
 
+### Option A: Native Windows Installed App (Recommended)
+1. Run `npm run electron:build` (or distribute `release/Smart Bill - Billing Software Setup 1.0.0.exe`).
+2. Run the installer on any Windows PC.
+3. It installs to the system, creates Desktop & Start Menu shortcuts, and runs **completely self-contained without Node.js or browser installations**.
+
+### Option B: Quick Batch Launcher (Developer / Portable)
 1. Double-click **`Create-Desktop-Shortcut.bat`** inside the project folder.
 2. A shortcut named **`Smart Bill - Billing Software`** will be placed on your Windows Desktop.
 3. Simply double-click the shortcut anytime to launch the software.

@@ -10,7 +10,9 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { LocalWhatsAppInfo, LocalWhatsAppStatus } from '../types';
 
-const AUTH_DIR = path.resolve(process.cwd(), '.whatsapp_auth');
+const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR
+  ? path.resolve(process.env.WHATSAPP_AUTH_DIR)
+  : path.resolve(process.cwd(), '.whatsapp_auth');
 
 let sock: WASocket | null = null;
 let currentStatus: LocalWhatsAppStatus = 'DISCONNECTED';

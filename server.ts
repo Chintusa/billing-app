@@ -333,7 +333,8 @@ async function startServer() {
 
   // Attempt auto-reconnect if session exists
   try {
-    const credsPath = path.resolve(process.cwd(), '.whatsapp_auth/creds.json');
+    const authDir = process.env.WHATSAPP_AUTH_DIR ? path.resolve(process.env.WHATSAPP_AUTH_DIR) : path.resolve(process.cwd(), '.whatsapp_auth');
+    const credsPath = path.join(authDir, 'creds.json');
     if (fs.existsSync(credsPath)) {
       console.log('[Local WhatsApp] Existing session found, initializing background connection...');
       initLocalWhatsAppGateway(false).catch((e) => console.log('[Local WhatsApp] Auto-init note:', e.message));
