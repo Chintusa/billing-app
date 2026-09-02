@@ -155,7 +155,9 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    require('electron').shell.openExternal(url);
+    if (url && (url.startsWith('http://') || url.startsWith('https://')) && !url.includes('127.0.0.1') && !url.includes('localhost')) {
+      require('electron').shell.openExternal(url);
+    }
     return { action: 'deny' };
   });
 

@@ -4,12 +4,6 @@ import { getAppSettings } from './db';
 import { resolveInvoiceMarketingNotes } from './marketingService';
 
 export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, paperSize: PaperSize | string = 'A4'): void {
-  const printWindow = window.open('', '_blank', 'width=800,height=900');
-  if (!printWindow) {
-    alert('Please allow popups in your browser to enable printing.');
-    return;
-  }
-
   const isThermal58 = paperSize === 'Thermal 58mm';
   const isThermal80 = paperSize === 'Thermal 80mm' || (paperSize.includes('Thermal') && !isThermal58);
   const isThermal = isThermal58 || isThermal80;
@@ -581,9 +575,6 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
             try {
               window.focus();
               window.print();
-              setTimeout(function() {
-                try { window.close(); } catch(e) {}
-              }, 1200);
             } catch(e) {}
           }
           if (document.readyState === 'complete') {
@@ -598,7 +589,46 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
     </html>
   `;
 
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
+  try {
+    let printFrame = document.getElementById('smart-bill-print-frame') as HTMLIFrameElement;
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      printFrame.id = 'smart-bill-print-frame';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      printFrame.style.visibility = 'hidden';
+      document.body.appendChild(printFrame);
+    }
+
+    const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+    if (frameDoc && printFrame.contentWindow) {
+      frameDoc.open();
+      frameDoc.write(html);
+      frameDoc.close();
+
+      setTimeout(() => {
+        try {
+          printFrame.contentWindow?.focus();
+          printFrame.contentWindow?.print();
+        } catch (e) {
+          console.error('Iframe print error:', e);
+        }
+      }, 300);
+      return;
+    }
+  } catch (err) {
+    console.warn('Iframe print attempt failed, attempting popup fallback:', err);
+  }
+
+  // Robust fallback
+  const fallbackWin = window.open('', '_blank');
+  if (fallbackWin) {
+    fallbackWin.document.open();
+    fallbackWin.document.write(html);
+    fallbackWin.document.close();
+  }
 }
