@@ -80,53 +80,34 @@ async function startBackendServer() {
     return;
   }
 
-  logMessage('Starting backend server...');
+  logMessage('Starting backend server in-process...');
   const isPackaged = app.isPackaged;
   const appPath = app.getAppPath();
   
-  let serverScript;
-  if (isPackaged) {
-    serverScript = path.join(appPath, 'dist', 'server.cjs');
-  } else {
-    serverScript = path.join(appPath, 'dist', 'server.cjs');
-    if (!fs.existsSync(serverScript)) {
-      serverScript = path.join(appPath, 'server.ts');
-    }
-  }
+  process.env.DIST_PATH = path.join(appPath, 'dist');
+  process.env.WHATSAPP_AUTH_DIR = whatsappAuthDir;
+  process.env.NODE_ENV = isPackaged ? 'production' : (process.env.NODE_ENV || 'production');
+  process.env.PORT = PORT;
 
+  const serverScript = path.join(appPath, 'dist', 'server.cjs');
   logMessage('Server script target: ' + serverScript);
 
-  const env = {
-    ...process.env,
-    ELECTRON_RUN_AS_NODE: '1',
-    NODE_ENV: isPackaged ? 'production' : (process.env.NODE_ENV || 'production'),
-    WHATSAPP_AUTH_DIR: whatsappAuthDir,
-    PORT: PORT
-  };
-
   try {
-    serverProcess = fork(serverScript, [], {
-      env,
-      stdio: ['pipe', 'pipe', 'pipe', 'ipc']
-    });
-
-    const serverLogStream = fs.createWriteStream(path.join(logsDir, 'server.log'), { flags: 'a' });
-
-    if (serverProcess.stdout) {
-      serverProcess.stdout.pipe(serverLogStream);
-      serverProcess.stdout.on('data', (d) => console.log(`[Server] ${d.toString().trim()}`));
+    if (fs.existsSync(serverScript)) {
+      require(serverScript);
+      logMessage('In-process backend server started successfully via require');
+    } else {
+      logMessage('server.cjs not found at ' + serverScript + ', attempting fork fallback...');
+      serverProcess = fork(path.join(appPath, 'server.ts'), [], {
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: '1'
+        },
+        stdio: 'inherit'
+      });
     }
-    if (serverProcess.stderr) {
-      serverProcess.stderr.pipe(serverLogStream);
-      serverProcess.stderr.on('data', (d) => console.error(`[Server Error] ${d.toString().trim()}`));
-    }
-
-    serverProcess.on('exit', (code, signal) => {
-      logMessage(`Backend process exited with code ${code}, signal ${signal}`);
-      serverProcess = null;
-    });
   } catch (err) {
-    logMessage('Failed to fork backend server: ' + err.message);
+    logMessage('Failed to start in-process backend server: ' + (err.stack || err.message));
   }
 }
 

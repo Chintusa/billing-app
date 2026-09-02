@@ -358,7 +358,11 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = process.env.DIST_PATH && fs.existsSync(process.env.DIST_PATH)
+      ? process.env.DIST_PATH
+      : (fs.existsSync(path.join(__dirname, 'dist'))
+          ? path.join(__dirname, 'dist')
+          : path.join(process.cwd(), 'dist'));
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
