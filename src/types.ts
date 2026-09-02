@@ -1,5 +1,19 @@
 export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Wallet' | 'Other';
 
+export interface ElectronAPI {
+  isElectron?: boolean;
+  platform?: string;
+  printHtml?: (html: string, options?: any) => Promise<{ success: boolean; failureReason?: string }>;
+  getPrinters?: () => Promise<any[]>;
+  getAppVersion?: () => Promise<string>;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
+}
+
 export type DiscountType = 'Flat' | 'Percentage';
 
 export interface InvoiceItem {

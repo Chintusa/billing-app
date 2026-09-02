@@ -167,6 +167,63 @@ function createWindow() {
 }
 
 // Setup IPC handlers
+ipcMain.handle('app:get-printers', async () => {
+  if (!mainWindow) return [];
+  try {
+    return await mainWindow.webContents.getPrintersAsync();
+  } catch (e) {
+    return [];
+  }
+});
+
+ipcMain.handle('app:print-html', async (_event, { html, options }) => {
+  return new Promise((resolve) => {
+    let workerWin = new BrowserWindow({
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    workerWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    workerWin.webContents.on('did-finish-load', () => {
+      setTimeout(() => {
+        if (!workerWin) return;
+        workerWin.webContents.print(
+          {
+            silent: false,
+            printBackground: true,
+            color: true,
+            deviceName: options?.deviceName || ''
+          },
+          (success, failureReason) => {
+            if (workerWin) {
+              try {
+                workerWin.close();
+              } catch (e) {}
+              workerWin = null;
+            }
+            resolve({ success, failureReason });
+          }
+        );
+      }, 150);
+    });
+
+    workerWin.on('unresponsive', () => {
+      if (workerWin) {
+        try {
+          workerWin.close();
+        } catch (e) {}
+        workerWin = null;
+      }
+      resolve({ success: false, failureReason: 'unresponsive' });
+    });
+  });
+});
+
 ipcMain.on('app:print', () => {
   if (mainWindow) {
     mainWindow.webContents.print({ silent: false, printBackground: true });

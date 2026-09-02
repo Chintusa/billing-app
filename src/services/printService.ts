@@ -589,6 +589,13 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
     </html>
   `;
 
+  // 1. If running inside Electron desktop app, use non-blocking dedicated background print worker
+  if (typeof window !== 'undefined' && window.electronAPI?.printHtml) {
+    window.electronAPI.printHtml(html, { paperSize });
+    return;
+  }
+
+  // 2. Browser invisible iframe printing
   try {
     let printFrame = document.getElementById('smart-bill-print-frame') as HTMLIFrameElement;
     if (!printFrame) {
@@ -624,7 +631,7 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
     console.warn('Iframe print attempt failed, attempting popup fallback:', err);
   }
 
-  // Robust fallback
+  // 3. Fallback popup window
   const fallbackWin = window.open('', '_blank');
   if (fallbackWin) {
     fallbackWin.document.open();
