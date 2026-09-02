@@ -72,6 +72,8 @@ async function waitForServer(maxAttempts = 40, intervalMs = 250) {
   return false;
 }
 
+let lastStartupError = null;
+
 // Start backend server
 async function startBackendServer() {
   const isAlreadyRunning = await checkServerHealth();
@@ -107,6 +109,7 @@ async function startBackendServer() {
       });
     }
   } catch (err) {
+    lastStartupError = err.message || String(err);
     logMessage('Failed to start in-process backend server: ' + (err.stack || err.message));
   }
 }
@@ -226,10 +229,10 @@ app.whenReady().then(async () => {
     logMessage('Backend server confirmed ready. Loading UI at ' + SERVER_URL);
     mainWindow.loadURL(SERVER_URL);
   } else {
-    logMessage('ERROR: Backend server failed to start within timeout.');
+    logMessage('ERROR: Backend server failed to start within timeout. ' + (lastStartupError || ''));
     dialog.showErrorBox(
       'Smart Bill Startup Error',
-      'The background billing service could not be started.\n\nPlease check if port 3000 is occupied or restart the application.'
+      `The background billing service could not be started on port ${PORT}.\n\nDetails: ${lastStartupError || 'Port check timed out'}\n\nPlease check if another application is using port ${PORT} or restart the software.`
     );
   }
 });
