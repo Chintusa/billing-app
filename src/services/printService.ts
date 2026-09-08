@@ -3,7 +3,16 @@ import { formatCurrency } from './billing';
 import { getAppSettings } from './db';
 import { resolveInvoiceMarketingNotes } from './marketingService';
 
+let lastPrintTime = 0;
+
 export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, paperSize: PaperSize | string = 'A4'): void {
+  // Prevent duplicate print triggers within 800ms
+  const now = Date.now();
+  if (now - lastPrintTime < 800) {
+    return;
+  }
+  lastPrintTime = now;
+
   const isThermal58 = paperSize === 'Thermal 58mm';
   const isThermal80 = paperSize === 'Thermal 80mm' || (paperSize.includes('Thermal') && !isThermal58);
   const isThermal = isThermal58 || isThermal80;
@@ -569,22 +578,6 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
           ${customFooterMsg}<br/>
           Smart Bill POS • Crafted with ❤️ by <a href="https://codenpixels.in" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline; font-weight: 600;">Code N Pixels (codenpixels.in)</a>
         </div>
-
-        <script>
-          function doPrint() {
-            try {
-              window.focus();
-              window.print();
-            } catch(e) {}
-          }
-          if (document.readyState === 'complete') {
-            setTimeout(doPrint, 250);
-          } else {
-            window.addEventListener('load', function() {
-              setTimeout(doPrint, 250);
-            });
-          }
-        </script>
       </body>
     </html>
   `;
@@ -597,19 +590,21 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
 
   // 2. Browser invisible iframe printing
   try {
-    let printFrame = document.getElementById('smart-bill-print-frame') as HTMLIFrameElement;
-    if (!printFrame) {
-      printFrame = document.createElement('iframe');
-      printFrame.id = 'smart-bill-print-frame';
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      printFrame.style.visibility = 'hidden';
-      document.body.appendChild(printFrame);
+    const existingFrame = document.getElementById('smart-bill-print-frame');
+    if (existingFrame) {
+      existingFrame.remove();
     }
+
+    const printFrame = document.createElement('iframe');
+    printFrame.id = 'smart-bill-print-frame';
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    printFrame.style.visibility = 'hidden';
+    document.body.appendChild(printFrame);
 
     const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
     if (frameDoc && printFrame.contentWindow) {
@@ -624,18 +619,26 @@ export function printInvoiceToPrinter(invoice: Invoice, store: StoreSettings, pa
         } catch (e) {
           console.error('Iframe print error:', e);
         }
-      }, 300);
+      }, 250);
       return;
     }
   } catch (err) {
     console.warn('Iframe print attempt failed, attempting popup fallback:', err);
   }
 
-  // 3. Fallback popup window
+  // 3. Fallback popup window (if iframe printing fails)
   const fallbackWin = window.open('', '_blank');
   if (fallbackWin) {
     fallbackWin.document.open();
     fallbackWin.document.write(html);
     fallbackWin.document.close();
+    setTimeout(() => {
+      try {
+        fallbackWin.focus();
+        fallbackWin.print();
+      } catch (e) {
+        console.error('Fallback print error:', e);
+      }
+    }, 250);
   }
 }

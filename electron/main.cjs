@@ -115,12 +115,14 @@ async function startBackendServer() {
 }
 
 function createWindow() {
+  const appIconPath = path.join(__dirname, '../assets/icon.png');
   mainWindow = new BrowserWindow({
     width: 1366,
     height: 768,
     minWidth: 1024,
     minHeight: 640,
     title: 'Smart Bill - Billing Software',
+    icon: fs.existsSync(appIconPath) ? appIconPath : undefined,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -173,7 +175,7 @@ ipcMain.handle('app:print-html', async (_event, { html, options }) => {
 
     workerWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-    workerWin.webContents.on('did-finish-load', () => {
+    workerWin.webContents.once('did-finish-load', () => {
       setTimeout(() => {
         if (!workerWin) return;
         workerWin.webContents.print(

@@ -59,11 +59,14 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "assets/**/*",
+      "public/**/*",
       "package.json"
     ],
     "win": {
       "target": "nsis",
-      "executableName": "SmartBill"
+      "executableName": "SmartBill",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,

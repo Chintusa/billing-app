@@ -14,9 +14,8 @@ echo.
 curl.exe -s -f -o nul --connect-timeout 1 http://localhost:3000/api/health 2>nul
 if %ERRORLEVEL% equ 0 (
     echo [✓] Smart Bill is already active!
-    echo [*] Opening application in your browser...
-    start http://localhost:3000
-    exit /b 0
+    echo [*] Opening application in Chrome App mode...
+    goto LAUNCH_APP
 )
 
 :: 2. Locate Node.js runtime
@@ -71,14 +70,29 @@ start "Smart Bill Server" /min "%NODE_CMD%" dist\server.cjs
 echo [*] Waiting for services to become ready...
 set /a ATTEMPTS=0
 
+:LAUNCH_APP
+if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" (
+    start "" "%ProgramFiles%\Google\Chrome\Application\chrome.exe" --app=http://localhost:3000
+) else if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" (
+    start "" "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" --app=http://localhost:3000
+) else if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" (
+    start "" "%LocalAppData%\Google\Chrome\Application\chrome.exe" --app=http://localhost:3000
+) else if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
+    start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app=http://localhost:3000
+) else if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" (
+    start "" "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" --app=http://localhost:3000
+) else (
+    start http://localhost:3000
+)
+exit /b 0
+
 :HEALTH_CHECK
 set /a ATTEMPTS+=1
 curl.exe -s -f -o nul --connect-timeout 1 http://localhost:3000/api/health 2>nul
 if %ERRORLEVEL% equ 0 (
     echo [✓] Smart Bill is ready!
     echo [*] Opening application...
-    start http://localhost:3000
-    exit /b 0
+    goto LAUNCH_APP
 )
 
 if !ATTEMPTS! geq 25 (

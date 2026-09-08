@@ -108,8 +108,13 @@ The installer will be generated in `release/Smart Bill - Billing Software Setup 
 2. A shortcut named **`Smart Bill - Billing Software`** will be placed on your Windows Desktop.
 3. Simply double-click the shortcut anytime to launch the software.
 
-To stop the background server:
-* Run **`Stop-Smart-Bill.bat`** to safely terminate running services on port 3000.
+### Option C: Windows Automatic Startup (Minimized Backend)
+* **Auto-Start On Login**: Run **`Enable-Windows-Startup.bat`** once. A shortcut is added to your Windows Startup folder (`shell:startup`) that launches the Node.js backend automatically when Windows starts.
+* **Minimized Mode**: The backend CMD window starts minimized in the taskbar without opening a browser or occupying desktop focus.
+* **Continuous Serving**: Serves the application continuously at `http://localhost:3000`.
+* **Disable Auto-Start**: Run **`Disable-Windows-Startup.bat`** anytime to remove it from Windows Startup.
+* **Manual Start**: Run **`Start-Backend-Minimized.bat`** to start the backend directly.
+* **Manual Stop**: Run **`Stop-Smart-Bill.bat`** to safely terminate running backend services on port 3000.
 
 ---
 
@@ -117,17 +122,20 @@ To stop the background server:
 
 ```text
 ├── src/
-│   ├── components/       # UI Views (NewBillView, HistoryView, SettingsView, WhatsAppModal, Header)
-│   ├── services/         # Business logic (billing, printService, pdfService, whatsappService, db)
-│   ├── types.ts          # TypeScript interfaces & data models
-│   ├── App.tsx           # Main application shell & tab routing
-│   └── main.tsx          # React application entry point
-├── server.ts             # Express & Baileys local WhatsApp gateway
-├── vite.config.ts        # Vite build & Tailwind CSS configuration
-├── Smart-Bill.bat        # One-click Windows application launcher
-├── Create-Desktop-Shortcut.bat  # Automated desktop shortcut creator
-├── Stop-Smart-Bill.bat   # Process terminator for port 3000
-└── dist/                 # Production bundled server and frontend assets
+│   ├── components/                 # UI Views (NewBillView, HistoryView, SettingsView, WhatsAppModal, Header)
+│   ├── services/                   # Business logic (billing, printService, pdfService, whatsappService, db)
+│   ├── types.ts                    # TypeScript interfaces & data models
+│   ├── App.tsx                     # Main application shell & tab routing
+│   └── main.tsx                    # React application entry point
+├── server.ts                       # Express & Baileys local WhatsApp gateway
+├── vite.config.ts                  # Vite build & Tailwind CSS configuration
+├── Start-Backend-Minimized.bat     # Minimized background backend starter (node dist/server.cjs)
+├── Enable-Windows-Startup.bat      # Registers minimized backend to Windows Startup folder
+├── Disable-Windows-Startup.bat     # Uninstalls backend from Windows Startup folder
+├── Smart-Bill.bat                  # One-click desktop launcher (starts server + opens browser)
+├── Create-Desktop-Shortcut.bat    # Automated desktop shortcut creator
+├── Stop-Smart-Bill.bat             # Process terminator for port 3000
+└── dist/                           # Production bundled server and frontend assets
 ```
 
 ---

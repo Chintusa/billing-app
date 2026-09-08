@@ -50,13 +50,13 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, theme }
         <div className="flex items-center space-x-3">
           {/* App Icon */}
           <div
-            className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs shadow-xs"
+            className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden p-0.5 shadow-xs shrink-0"
             style={{
-              backgroundColor: currentTheme.isDark ? '#374151' : 'rgba(255,255,255,0.25)',
-              color: '#FFFFFF'
+              backgroundColor: currentTheme.isDark ? '#374151' : 'rgba(255,255,255,0.2)',
+              border: '1px solid rgba(255,255,255,0.25)'
             }}
           >
-            SB
+            <img src="/icon.png" alt="Smart Bill" className="w-full h-full object-contain" />
           </div>
           <div className="flex flex-col">
             <h1 className="text-lg font-bold tracking-tight leading-tight">Smart Bill - Billing Software</h1>

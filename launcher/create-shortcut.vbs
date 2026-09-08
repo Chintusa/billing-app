@@ -10,6 +10,13 @@ desktopPath = WshShell.SpecialFolders("Desktop")
 Set shortcut = WshShell.CreateShortcut(desktopPath & "\Smart Bill - Billing Software.lnk")
 shortcut.TargetPath = projectDir & "\Smart-Bill.bat"
 shortcut.WorkingDirectory = projectDir
-shortcut.Description = "Smart Bill - Offline Billing & POS Software"
-shortcut.IconLocation = "shell32.dll,138"
+iconPath = projectDir & "\assets\smart-bill.ico"
+If Not fso.FileExists(iconPath) Then
+    iconPath = projectDir & "\assets\icon.ico"
+End If
+If fso.FileExists(iconPath) Then
+    shortcut.IconLocation = iconPath & ",0"
+Else
+    shortcut.IconLocation = "shell32.dll,138"
+End If
 shortcut.Save
